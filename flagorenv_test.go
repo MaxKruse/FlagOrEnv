@@ -60,29 +60,3 @@ func TestExpectedTypeSuccessFromEnv(t *testing.T) {
 		t.Errorf("Expected TypeSuccessField to be 1, got %v", res.TypeSuccessField)
 	}
 }
-
-// Always run tests with a "-test-type-error-field 1" flag
-func TestExpectedTypeErrorFromFlag(t *testing.T) {
-	c := &Config{}
-	c.Prefix = "TEST"
-	c.PreferFlag = true
-
-	res, err := LoadFlagsOrEnv[TestExpectedTypeError](c)
-
-	if err == nil {
-		t.Errorf("Expected error, got success: %v", res)
-	}
-}
-
-// Always run tests with a "-test-type-success-field 1" flag
-func TestExpectedTypeSuccessFromFlag(t *testing.T) {
-	c := &Config{}
-	c.Prefix = "TEST"
-	c.PreferFlag = true
-
-	res, err := LoadFlagsOrEnv[TestExpectedTypeSuccess](c)
-
-	if err == nil {
-		t.Errorf("Expected error, got success: %v", res)
-	}
-}
