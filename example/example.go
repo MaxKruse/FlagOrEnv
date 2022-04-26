@@ -7,8 +7,8 @@ import (
 )
 
 type ExampleStruct struct {
-	StringField string
-	Int64Field  int64
+	StringField string `default:"my default string, as per the tag"`
+	IntField    int64
 }
 
 func main() {

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mcuadros/go-defaults"
 	"github.com/stoewer/go-strcase"
 )
 
@@ -22,43 +23,30 @@ const (
 
 func LoadFlagsOrEnv[T any](c *Config) (T, error) {
 	var res T
-	var envVars T
-	var flagVars T
-
 	if c.Prefix == "" {
 		c.Prefix = prefix
 	}
 
-	var err1 error
-	var err2 error
-
-	if c.PreferFlag {
-		// first, load everything from env
-		envVars, err1 = loadEnv[T](c)
-		// then, load everything from flag
-		flagVars, err2 = loadFlags[T](c)
-	} else {
-		// reverse the order from above
-		flagVars, err1 = loadFlags[T](c)
-		envVars, err2 = loadEnv[T](c)
+	envVars, err := loadEnv[T](c)
+	if err != nil {
+		return res, err
 	}
-
-	if err1 != nil {
-		return res, err1
-	}
-
-	if err2 != nil {
-		return res, err2
+	flagVars, err := loadFlags[T](c)
+	if err != nil {
+		return res, err
 	}
 
 	// merge envVars and flagVars, giving precedence to envVars
-	res, err := merge(c, envVars, flagVars)
+	res, err = merge(c, envVars, flagVars)
 
 	return res, err
 }
 
 func merge[T any](c *Config, envVars T, flagVars T) (T, error) {
 	var res T
+
+	// set defaults according to the 'default:' tag
+	defaults.SetDefaults(&res)
 
 	// for every pair of fields in T,
 	// compare if either is a default value
@@ -70,13 +58,25 @@ func merge[T any](c *Config, envVars T, flagVars T) (T, error) {
 		envField := reflect.ValueOf(envVars).Field(i)
 		flagField := reflect.ValueOf(flagVars).Field(i)
 
-		envFieldVal := envField.Interface()
-		flagFieldVal := flagField.Interface()
+		// if both the envField and flagField have a value that is not Zero,
+		// set the res to the value according to the config.PreferFlag option
+		// If only one of them has a value that is not Zero,
+		// set the field to that value
 
-		if envFieldVal == reflect.Zero(field.Type()).Interface() || c.PreferFlag {
-			field.Set(flagField)
-		} else if flagFieldVal == reflect.Zero(field.Type()).Interface() {
+		if !envField.IsZero() && !flagField.IsZero() {
+			if c.PreferFlag {
+				field.Set(flagField)
+			} else {
+				field.Set(envField)
+			}
+		}
+
+		if !envField.IsZero() && flagField.IsZero() {
 			field.Set(envField)
+		}
+
+		if envField.IsZero() && !flagField.IsZero() {
+			field.Set(flagField)
 		}
 	}
 
