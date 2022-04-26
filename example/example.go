@@ -9,6 +9,7 @@ import (
 type ExampleStruct struct {
 	StringField string `default:"my default string, as per the tag"`
 	IntField    int64
+	StrArr      []string
 }
 
 func main() {
