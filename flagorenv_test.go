@@ -5,20 +5,20 @@ import (
 	"testing"
 )
 
-type EmptyStruct struct{}
+type emptyStruct struct{}
 
-type TestExpectedTypeError struct {
+type testExpectedTypeError struct {
 	TypeErrorField int
 }
 
-type TestExpectedTypeSuccess struct {
+type testExpectedTypeSuccess struct {
 	TypeSuccessField int64
 }
 
 func TestConfigDefaults(t *testing.T) {
 	c := &Config{}
 
-	LoadFlagsOrEnv[EmptyStruct](c)
+	LoadFlagsOrEnv[emptyStruct](c)
 
 	if c.PreferFlag != false {
 		t.Errorf("PreferFlag should be false by default, was %v", c.PreferFlag)
@@ -36,7 +36,7 @@ func TestExpectedTypeErrorFromEnv(t *testing.T) {
 	os.Setenv("TEST_TYPE_ERROR_FIELD", "1")
 	defer os.Unsetenv("TEST_TYPE_ERROR_FIELD")
 
-	res, err := LoadFlagsOrEnv[TestExpectedTypeError](c)
+	res, err := LoadFlagsOrEnv[testExpectedTypeError](c)
 
 	if err == nil {
 		t.Errorf("Expected error, got success: %v", res)
@@ -50,7 +50,7 @@ func TestExpectedTypeSuccessFromEnv(t *testing.T) {
 	os.Setenv("TEST_TYPE_SUCCESS_FIELD", "1")
 	defer os.Unsetenv("TEST_TYPE_SUCCESS_FIELD")
 
-	res, err := LoadFlagsOrEnv[TestExpectedTypeSuccess](c)
+	res, err := LoadFlagsOrEnv[testExpectedTypeSuccess](c)
 
 	if err != nil {
 		t.Errorf("Expected success, got error: %v", err)
