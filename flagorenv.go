@@ -108,7 +108,9 @@ func loadFlags[T any](c *Config) (T, error) {
 			flag.StringVar(&tempSliceStr, fieldName, "", "")
 		case reflect.Int64:
 			flag.Int64Var(fieldInterface.(*int64), fieldName, 0, "")
-		case reflect.Float64:
+		case reflect.Int, reflect.Int32:
+			flag.IntVar(fieldInterface.(*int), fieldName, 0, "")
+		case reflect.Float32, reflect.Float64:
 			flag.Float64Var(fieldInterface.(*float64), fieldName, 0, "")
 		case reflect.Bool:
 			flag.BoolVar(fieldInterface.(*bool), fieldName, false, "")
@@ -120,16 +122,24 @@ func loadFlags[T any](c *Config) (T, error) {
 	// consume flag
 	flag.Parse()
 
-	// split the string by ","
-	// and set the field to the resulting slice
-	for i := 0; i < resref.NumField(); i++ {
+	// iterate through every field of T. if a slice is encountered,
+	// call the parseSlice function to parse the slice accordingly
 
-		// depending on the field type, set the flag module switch
-		switch resref.Field(i).Kind() {
-		case reflect.Slice:
-			splitStrs := reflect.ValueOf(strings.Split(tempSliceStr, ","))
-			resref.Field(i).Set(splitStrs)
+	for i := 0; i < resref.NumField(); i++ {
+		field := resref.Type().Field(i)
+
+		if field.Type.Kind() != reflect.Slice {
+			continue
 		}
+
+		// parse the slice
+		slice, err := parseSlice(tempSliceStr, field.Type.Elem())
+		if err != nil {
+			return res, err
+		}
+
+		// set the slice to the field
+		resref.Field(i).Set(slice)
 	}
 
 	return res, nil
@@ -149,7 +159,7 @@ func loadEnv[T any](c *Config) (T, error) {
 	for i := 0; i < value.NumField(); i++ {
 		fieldName := value.Type().Field(i).Name
 		// if the fieldname has CamelCase, convert it to snake_case
-		fieldName = strcase.UpperSnakeCase(c.Prefix + fieldName)
+		fieldName = strcase.UpperSnakeCase(c.Prefix + "_" + fieldName)
 
 		// get the environment variable
 		envVar := os.Getenv(fieldName)
@@ -159,12 +169,14 @@ func loadEnv[T any](c *Config) (T, error) {
 		case reflect.String:
 			value.Field(i).SetString(envVar)
 		case reflect.Slice:
-			// split the string by ","
-			// and set the field to the resulting slice
-			value.Field(i).Set(reflect.ValueOf(strings.Split(envVar, ",")))
+			slice, err := parseSlice(envVar, value.Field(i).Type().Elem())
+			if err != nil {
+				return res, err
+			}
+			value.Field(i).Set(slice)
 		case reflect.Int64:
 			// parse the string as an int
-			value.Field(i).SetInt(int64(parseInt(envVar)))
+			value.Field(i).SetInt(parseInt64(envVar))
 		case reflect.Float64:
 			// parse the string as a float
 			value.Field(i).SetFloat(parseFloat(envVar))
@@ -179,12 +191,59 @@ func loadEnv[T any](c *Config) (T, error) {
 	return res, nil
 }
 
-func parseInt(s string) int {
+func parseSlice(str string, elem reflect.Type) (reflect.Value, error) {
+	// split str by ","
+	// iterate through the current field
+	// parse the string as the current field type
+	// append the parsed value to the slice
+	// return the slice
+
+	if str == "" {
+		return reflect.MakeSlice(reflect.SliceOf(elem), 0, 0), nil
+	}
+
+	slice := reflect.MakeSlice(reflect.SliceOf(elem), 0, 0)
+	for _, s := range strings.Split(str, ",") {
+
+		// additionally, strip the string of whitespace
+		s = strings.TrimSpace(s)
+
+		// parse the string as the current field type
+		// append the parsed value to the slice
+		switch elem.Kind() {
+		case reflect.String:
+			slice = reflect.Append(slice, reflect.ValueOf(s))
+		case reflect.Int64:
+			slice = reflect.Append(slice, reflect.ValueOf(parseInt64(s)))
+		case reflect.Int32, reflect.Int:
+			slice = reflect.Append(slice, reflect.ValueOf(parseInt32(s)))
+		case reflect.Float64, reflect.Float32:
+			slice = reflect.Append(slice, reflect.ValueOf(parseFloat(s)))
+		case reflect.Bool:
+			slice = reflect.Append(slice, reflect.ValueOf(parseBool(s)))
+		default:
+			return slice, fmt.Errorf("unsupported type %s", elem.Kind())
+		}
+	}
+
+	return slice, nil
+}
+
+func parseInt32(str string) int32 {
+	i, err := strconv.ParseInt(str, 10, 32)
+	if err != nil {
+		panic(err)
+	}
+
+	return int32(i)
+}
+
+func parseInt64(s string) int64 {
 	if s == "" {
 		return 0
 	}
 
-	i, err := strconv.Atoi(s)
+	i, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
 		panic(err)
 	}
